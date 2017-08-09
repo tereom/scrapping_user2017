@@ -1,0 +1,118 @@
+---
+title: "Scrapping useR!2017 videos"
+output: github_document
+---
+
+Last week I read Dean Attali's post [What makes an R talk popular? Scraping useR2017 attendance information to find out!](What makes an R talk popular? Scraping useR2017 attendance information to find out!) and I wondered
+whether the most attended talks during useR2017 are also the most viewed in recording. So I decided to do a little bit of 
+web scrapping to find out, the videos are in
+[Channel 9](https://channel9.msdn.com/Events/useR-international-R-User-conferences/useR-International-R-User-2017-Conference?sort=status&direction=desc&page=1) and from here I got the speakers, talks' titles, days released and views.
+
+DISCLAIMER: I am by no means an expert web scrapper (I have only done it once with a toy example) so
+I am sure my code is far from efficient.
+
+I used the [rvest](https://github.com/hadley/rvest) package and the [selector gadget](http://selectorgadget.com):
+
+```{r scrapping_functions, message=FALSE}
+library(rvest)
+library(purrr)
+library(dplyr)
+library(printr)
+
+videos_urls <- paste0("https://channel9.msdn.com/Events/useR-international-R-User-conferences/useR-International-R-User-2017-Conference?sort=status&direction=desc&page=", 1:16)
+
+get_speakers <- function(talk_content){
+  talk_content %>%
+    html_node(".authors") %>%
+    html_text(trim = TRUE) %>%
+    stringr::str_replace(pattern = "by ", "")
+}
+get_views <- function(talk_content){
+  talk_content %>%
+    html_nodes(".views .count") %>%
+    html_text(trim = TRUE) %>%
+    as.numeric()
+}
+get_length <- function(talk_content){
+  talk_content %>%
+    html_nodes(".caption") %>%
+    html_text(trim = TRUE) 
+}
+get_released_day <- function(talk_content){
+  talk_content %>%
+    html_nodes(".releaseDate") %>%
+    html_text(trim = TRUE) 
+}
+
+get_info_talk <- function(talk_url, title = "No title"){ 
+  # print(talk_url)
+  talk_content <- read_html(talk_url) 
+  views <- get_views(talk_content)
+  data_frame(
+    title = title,
+    speakers = try(get_speakers(talk_content)),
+    views = try(ifelse(length(views) > 0, views, NA)),
+    day_released = try(get_released_day(talk_content))
+  )
+}
+
+get_event_data <- function(video_url) {
+  # Read the HTML page
+  base_url <- "https://channel9.msdn.com"
+  content <- read_html(video_url)
+  
+  # Extract information from the page
+  titles <- content %>% 
+    html_nodes("h3 a") %>%
+    html_text(trim = TRUE)
+  
+  talks_urls <- content %>% 
+    html_nodes("h3 a") %>%
+    html_attr("href")
+  talks_urls <- paste(base_url, talks_urls, sep = "")
+  talks_values <- map2_df(talks_urls, titles, ~get_info_talk(.x, .y))
+}
+
+# views <- map_df(videos_urls, ~ get_event_data(.x))
+# save(views, file = "views.RData")
+load(file = "views.RData")
+```
+
+So far there are `r nrow(views)` videos in Channel 9, latest one released in
+July 25. 
+
+```{r}
+glimpse(views)
+```
+
+Sort by most viewed:
+
+```{r}
+views %>%
+    mutate(
+        title = substr(title, 1, 40), 
+        speakers = substr(speakers, 1, 20)) %>%
+    arrange(desc(views)) %>%
+    select(title, speakers, views) %>%
+    top_n(10)
+```
+
+We can see that the most viewed are not the most attended, from [Dean Attali](http://deanattali.com/blog/user2017/) the most attended are:
+
+1. *Show Me Your Model: tools for visualisation of statistic…*, speaker Przemyslaw Biecek 
+and 519 attendees
+
+2. *Scraping data with rvest and purrr*, speaker Max Humber 
+and 362 attendees
+
+3. *Text mining, the tidy way* speaker Julia Silge and 351 attendees, 
+
+4. *Programming with tidyverse grammars* speaker Lionel Henry and 350 attendees, 
+
+5. *How we built a Shiny App for 700 users?* speaker Olga Mierzwa-Sulima and 321 attendees.
+
+I look forward to do a few more plots for example plotting attendance vs views,
+or looking for a relationship between talk duration and views (perhaps some people is 
+more likely to watch short videos?). Anyways, I will watch the very popular talk by
+Max Humber *Scrapping data with rvest and purrr* and will try to answer this 
+questions in my next break.
