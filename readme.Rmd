@@ -1,6 +1,6 @@
 ---
 title: "Scrapping useR!2017 videos"
-output: github_document
+output: html_document
 ---
 
 Last week I read Dean Attali's post [What makes an R talk popular? Scraping useR2017 attendance information to find out!](What makes an R talk popular? Scraping useR2017 attendance information to find out!) and I wondered

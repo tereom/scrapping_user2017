@@ -4,6 +4,10 @@ library(purrr)
 library(dplyr)
 library(printr)
 
+# run in computing cluster that uses the SLURM workload manager
+# in CONABIO can be run from the RStudio server in:
+# https://cran.r-project.org/web/packages/rslurm/vignettes/rslurm.html
+
 videos_urls <- paste0("https://channel9.msdn.com/Events/useR-international-R-User-conferences/useR-International-R-User-2017-Conference?sort=status&direction=desc&page=", 1:16)
 
 get_speakers <- function(talk_content){
@@ -45,7 +49,6 @@ get_event_data <- function(video_url) {
     # Read the HTML page
     base_url <- "https://channel9.msdn.com"
     content <- read_html(video_url)
-    
     # Extract information from the page
     titles <- content %>% 
         html_nodes("h3 a") %>%
@@ -57,11 +60,15 @@ get_event_data <- function(video_url) {
     talks_urls <- paste(base_url, talks_urls, sep = "")
     talks_values <- map2_df(talks_urls, titles, ~get_info_talk(.x, .y))
 }
+
+# data.frame with parameters, column names must match parameter name in function
 videos_urls_df <- data.frame(video_url = videos_urls, stringsAsFactors = FALSE)
 
+# slurm_apply creates all the necesary scripts and divides the code
 sjob <- slurm_apply(get_event_data, videos_urls_df, jobname = "test_job", 
     nodes = 5, cpus_per_node = 2, slurm_options = list(partition = "optimus"), 
-    add_objects = c("get_info_talk", "get_speakers", "get_views", "get_length", "get_released_day"))
+    add_objects = c("get_info_talk", "get_speakers", "get_views", "get_length", 
+        "get_released_day"))
 print_job_status(sjob)
 res_raw <- get_slurm_out(sjob, outtype = "raw", wait = FALSE)
 res_raw
