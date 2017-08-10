@@ -8,13 +8,15 @@ whether the most attended talks during useR2017 are also the most viewed in reco
 web scrapping to find out, the videos are in
 [Channel 9](https://channel9.msdn.com/Events/useR-international-R-User-conferences/useR-International-R-User-2017-Conference?sort=status&direction=desc&page=1) and from here I got the speakers, talks' titles, days released and views.
 
-DISCLAIMER: I am by no means an expert web scrapper (I have only done it once with a toy example) so
-I am sure my code is far from efficient.
+DISCLAIMER: I am by no means an expert in web scrapping (I had only done it once with a toy example) so
+I am sure my code is not the best.
 
 I used the [rvest](https://github.com/hadley/rvest) package and the [selector gadget](http://selectorgadget.com):
 
 ```{r scrapping_functions, message=FALSE}
 library(rvest)
+library(ggplot2)
+library(plotly)
 library(purrr)
 library(dplyr)
 library(printr)
@@ -75,6 +77,7 @@ get_event_data <- function(video_url) {
 
 # views <- map_df(videos_urls, ~ get_event_data(.x))
 # save(views, file = "views.RData")
+# takes a long time to run so I saved the data frame views
 load(file = "views.RData")
 ```
 
@@ -111,8 +114,52 @@ and 362 attendees
 
 5. *How we built a Shiny App for 700 users?* speaker Olga Mierzwa-Sulima and 321 attendees.
 
-I look forward to do a few more plots for example plotting attendance vs views,
-or looking for a relationship between talk duration and views (perhaps some people is 
-more likely to watch short videos?). Anyways, I will watch the very popular talk by
-Max Humber *Scrapping data with rvest and purrr* and will try to answer this 
-questions in my next break.
+Better to plot, I used Dean Attali script to scrape attendance and joined the 
+resulting table with the table of recordings' views:
+
+```{r attendance_views, message=FALSE, warning=FALSE}
+# source("scrape_attendance.R")
+# save(all_taks, file = "attendance.RData")
+# takes some time to run so I saved the data frame all_talks
+load("attendance.RData")
+
+views_filtered <- views %>%
+    arrange(desc(title)) %>%
+    filter(speakers != "TBD") %>%
+    mutate(
+        speaker = trimws(speakers)
+    )
+
+views_attendance <- views_filtered %>%
+    left_join(all_talks, by = "speaker")
+```
+
+I filtered the talks where the speaker slot had TBD, and I joined the data sets
+(corresponding to attendance and views) using the speaker` columns, I tried 
+to join by title but the title columns did not match for many talks. Joining by 
+speaker was not perfect either I lost a few talks, I need to do it
+more carefully.
+
+```{r plotly, message=FALSE, warning=FALSE}
+p <- ggplot(views_attendance) +
+    geom_point(aes(x = views, y = attendance, text = title.x, color = type), alpha = 0.7) + 
+    scale_x_log10() +
+    scale_y_log10() +
+    theme_bw() +
+    labs(title = "useR2017 talks")
+pp <- ggplotly(p, tooltip = c("text"), originalData = TRUE)
+pp
+```
+
+
+
+
+I think it is interesting that the talks with the highest attendance are not 
+the most popular recordings. There are several patterns, for example, the 
+*Invited talks* have the highest attendance but rank relatively lower in recording views
+(although still many views).
+The opposite happens to talks like *Too good for your own good:Shiny prototypes 
+out of control* or *Morphological Analysis with R* which had lower attendance compared
+to recordings views.
+
+
